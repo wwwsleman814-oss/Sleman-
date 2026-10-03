@@ -434,11 +434,11 @@
         });
     </script>
 
-    <!-- كود تسجيل الـ Service Worker (مطلوب لنجاح اختبار PWABuilder وتحويل التطبيق لـ APK) -->
+    <!-- كود تسجيل الـ Service Worker (معدل ليتوافق مع مسارات GitHub Pages) -->
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/pwabuilder-sw.js')
+                navigator.serviceWorker.register('pwabuilder-sw.js')
                     .then(reg => console.log('Service Worker registered!', reg))
                     .catch(err => console.log('Service Worker registration failed: ', err));
             });
