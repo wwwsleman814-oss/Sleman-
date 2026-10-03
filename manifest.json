@@ -1,12 +1,9 @@
 {
   "name": "Sleman App",
   "short_name": "Sleman",
-  "description": "3D Supabase Application",
+  "description": "3D App",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#ffffff",
-  "orientation": "any",
-  "scope": "/",
-  "dir": "ltr"
+  "theme_color": "#ffffff"
 }
