@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Golden Tree 3D - Pro with Debugger</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #0a0514; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: white; }
+        
+        /* شاشة تسجيل الدخول */
+        #auth-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, #2d1045 0%, #0a0514 100%);
+            display: flex; justify-content: center; align-items: center; z-index: 10;
+        }
+        .auth-box {
+            background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px);
+            padding: 40px; border-radius: 20px; border: 1px solid rgba(255, 215, 0, 0.3);
+            text-align: center; width: 320px; box-shadow: 0 0 30px rgba(255, 215, 0, 0.2);
+        }
+        .auth-box h2 { color: #ffd700; margin-bottom: 20px; text-shadow: 0 0 10px #ff8c00; }
+        .auth-box input {
+            width: 90%; padding: 12px; margin-bottom: 15px; border-radius: 8px;
+            border: 1px solid #444; background: #1a1a1a; color: white; outline: none;
+        }
+        .auth-box input:focus { border-color: #ffd700; }
+        .auth-box button {
+            width: 100%; padding: 12px; background: linear-gradient(90deg, #ffd700, #ff8c00);
+            border: none; border-radius: 8px; color: #000; font-weight: bold; font-size: 16px; cursor: pointer;
+            margin-bottom: 10px; transition: transform 0.2s;
+        }
+        .auth-box button:active { transform: scale(0.95); }
+        .auth-box .toggle-btn { background: transparent; color: #ffd700; font-size: 14px; text-decoration: underline; border: none; cursor: pointer; }
+
+        /* شاشة اللعبة */
+        #game-screen { display: none; width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+        #ui-overlay {
+            position: absolute; bottom: 30px; width: 100%; text-align: center; z-index: 5;
+        }
+        .balance { position: absolute; top: 20px; right: 20px; color: #00ffcc; font-size: 24px; font-weight: bold; z-index: 5; text-shadow: 0 0 10px #00ffcc; }
+        .spin-btn {
+            padding: 15px 40px; font-size: 24px; background: radial-gradient(circle, #ffd700, #ff8c00);
+            border: none; border-radius: 50px; color: #000; font-weight: bold; cursor: pointer;
+            box-shadow: 0 0 30px #ff8c00; transition: transform 0.1s;
+        }
+        .spin-btn:active { transform: scale(0.95); }
+        .spin-btn:disabled { background: #555; box-shadow: none; cursor: not-allowed; }
+        #message { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 30px; font-weight: bold; color: gold; text-shadow: 0 0 20px orange; display: none; z-index: 6; text-align: center; }
+        .logout-btn { position: absolute; top: 20px; left: 20px; background: #333; color: #fff; border: 1px solid #666; padding: 8px 15px; border-radius: 8px; cursor: pointer; z-index: 5; }
+
+        /* تصميم صندوق تتبع الأخطاء البرمجية الفوري */
+        #debug-error-box {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(220, 20, 60, 0.95); border: 2px solid #fff; color: #fff;
+            padding: 15px 25px; border-radius: 12px; z-index: 99999; display: none;
+            max-width: 90%; text-align: center; box-shadow: 0 5px 25px rgba(0,0,0,0.6);
+            font-size: 15px; direction: ltr;
+        }
+        #debug-error-box button {
+            background: #fff; color: #dc143c; border: none; padding: 5px 12px;
+            margin-top: 8px; border-radius: 5px; font-weight: bold; cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- صندوق عرض الأخطاء الفورية -->
+    <div id="debug-error-box">
+        <div id="debug-error-text"></div>
+        <button onclick="closeErrorBox()">إغلاق الخطأ</button>
+    </div>
+
+    <!-- شاشة تسجيل الدخول -->
+    <div id="auth-screen">
+        <div class="auth-box">
+            <h2>GOLDEN TREE</h2>
+            <input type="email" id="email" placeholder="البريد الإلكتروني">
+            <input type="password" id="password" placeholder="كلمة المرور">
+            <button id="authActionBtn" onclick="handleAuthAction()">تسجيل الدخول</button>
+            <button class="toggle-btn" onclick="toggleAuthMode()">ليس لديك حساب؟ سجل الآن</button>
+        </div>
+    </div>
+
+    <!-- شاشة اللعبة -->
+    <div id="game-screen">
+        <button class="logout-btn" onclick="signOut()">خروج</button>
+        <div class="balance">الرصيد: $<span id="balance">0.00</span></div>
+        <div id="message"></div>
+        <div id="ui-overlay">
+            <button class="spin-btn" id="spinBtn">SPIN</button>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 0. دالة مراقبة وإظهار الأخطاء الفورية (Debugger)
+        // ==========================================
+        function showDebugError(context, error) {
+            console.error(`[CRITICAL ERROR] [${context}]:`, error);
+            const errBox = document.getElementById('debug-error-box');
+            const errText = document.getElementById('debug-error-text');
+            
+            let errorMsg = error;
+            if (typeof error === 'object') {
+                errorMsg = error.message || JSON.stringify(error);
+            }
+            
+            errText.innerHTML = `<strong>Location:</strong> ${context}<br><strong>Error:</strong> ${errorMsg}`;
+            errBox.style.display = 'block';
+
+            // إعادة تفعيل الأزرار إن علقت أثناء العملية
+            isSpinning = false;
+            const spinBtn = document.getElementById('spinBtn');
+            if (spinBtn) spinBtn.disabled = false;
+        }
+
+        function closeErrorBox() {
+            document.getElementById('debug-error-box').style.display = 'none';
+        }
+
+        // رصد أي خطأ عام غير معالج في الصفحة
+        window.onerror = function (msg, url, lineNo, columnNo, error) {
+            showDebugError(`JS Script Error (Line ${lineNo})`, msg);
+            return false;
+        };
+
+        window.addEventListener('unhandledrejection', event => {
+            showDebugError("Unhandled Promise/Async", event.reason);
+        });
+
+        // ==========================================
+        // 1. إعداد Supabase (المفاتيح المحدثة بدقة)
+        // ==========================================
+        const SUPABASE_URL = 'https://zwyukqwdbykaccsunek.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'sb_publishable_LhPO8Lz4qq_IVVFOvNmvFA_7_4TJncY'; 
+        
+        let supabaseClient;
+        try {
+            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        } catch (e) {
+            showDebugError("Supabase Initialization", e);
+        }
+
+        let currentUser = null;
+        let userBalance = 0;
+        let isLoginMode = true;
+
+        // ==========================================
+        // 2. منطق المصادقة
+        // ==========================================
+        function toggleAuthMode() {
+            isLoginMode = !isLoginMode;
+            const btn = document.querySelector('.toggle-btn');
+            const mainBtn = document.getElementById('authActionBtn');
+            if (isLoginMode) {
+                mainBtn.innerText = 'تسجيل الدخول';
+                btn.innerText = 'ليس لديك حساب؟ سجل الآن';
+            } else {
+                mainBtn.innerText = 'إنشاء حساب جديد';
+                btn.innerText = 'لديك حساب؟ سجل الدخول';
+            }
+        }
+
+        async function handleAuthAction() {
+            try {
+                const emailField = document.getElementById('email').value.trim();
+                const passwordField = document.getElementById('password').value.trim();
+
+                if (!emailField || !passwordField) {
+                    alert("⚠️ يرجى إدخال البريد الإلكتروني وكلمة المرور.");
+                    return;
+                }
+
+                if (isLoginMode) {
+                    await signIn(emailField, passwordField);
+                } else {
+                    await signUp(emailField, passwordField);
+                }
+            } catch (err) {
+                showDebugError("handleAuthAction", err);
+            }
+        }
+
+        async function signIn(email, password) {
+            try {
+                const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                if (error) {
+                    showDebugError("Supabase SignIn API", error.message);
+                } else if (data && data.user) {
+                    currentUser = data.user;
+                    await startGame();
+                }
+            } catch (err) {
+                showDebugError("signIn Exception", err);
+            }
+        }
+
+        async function signUp(email, password) {
+            try {
+                const { data, error } = await supabaseClient.auth.signUp({ email, password });
+                if (error) {
+                    showDebugError("Supabase SignUp API", error.message);
+                } else {
+                    alert("✅ تم إنشاء الحساب بنجاح! يمكنك تسجيل الدخول الآن.");
+                    isLoginMode = true;
+                    toggleAuthMode();
+                }
+            } catch (err) {
+                showDebugError("signUp Exception", err);
+            }
+        }
+
+        async function signOut() {
+            try {
+                await supabaseClient.auth.signOut();
+                currentUser = null;
+                userBalance = 0;
+                document.getElementById('game-screen').style.display = 'none';
+                document.getElementById('auth-screen').style.display = 'flex';
+                
+                const canvas = document.querySelector('#game-screen canvas');
+                if (canvas) {
+                    canvas.remove();
+                    renderer = null;
+                    scene = null;
+                    camera = null;
+                    reels = [];
+                }
+            } catch (err) {
+                showDebugError("signOut", err);
+            }
+        }
+
+        // ==========================================
+        // 3. إدارة الرصيد وقاعدة البيانات
+        // ==========================================
+        async function startGame() {
+            try {
+                if (!currentUser) return;
+                document.getElementById('auth-screen').style.display = 'none';
+                document.getElementById('game-screen').style.display = 'block';
+                
+                await fetchBalance();
+                if (!renderer) {
+                    init3D();
+                }
+            } catch (err) {
+                showDebugError("startGame", err);
+            }
+        }
+
+        async function fetchBalance() {
+            try {
+                if (!currentUser) return;
+                const { data, error } = await supabaseClient
+                    .from('profiles')
+                    .select('balance')
+                    .eq('id', currentUser.id)
+                    .maybeSingle();
+
+                if (error) {
+                    showDebugError("fetchBalance DB Query", error.message);
+                    userBalance = 1000.00;
+                } else if (data) {
+                    userBalance = data.balance || 0;
+                } else {
+                    userBalance = 1000.00;
+                }
+                document.getElementById('balance').innerText = Number(userBalance).toFixed(2);
+            } catch (err) {
+                showDebugError("fetchBalance Exception", err);
+            }
+        }
+
+        async function updateBalanceInDB(newBalance) {
+            try {
+                if (!currentUser) return;
+                const { error } = await supabaseClient
+                    .from('profiles')
+                    .update({ balance: newBalance, updated_at: new Date().toISOString() })
+                    .eq('id', currentUser.id);
+
+                if (error) {
+                    showDebugError("updateBalanceInDB API", error.message);
+                } else {
+                    userBalance = newBalance;
+                    document.getElementById('balance').innerText = Number(userBalance).toFixed(2);
+                }
+            } catch (err) {
+                showDebugError("updateBalanceInDB Exception", err);
+            }
+        }
+
+        // ==========================================
+        // 4. محرك الرسومات الثلاثية الأبعاد (Three.js)
+        // ==========================================
+        let scene, camera, renderer, reels = [];
+        let isSpinning = false;
+
+        function init3D() {
+            try {
+                scene = new THREE.Scene();
+                scene.fog = new THREE.FogExp2(0x0a0514, 0.05);
+
+                camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+                camera.position.set(0, 1, 8);
+
+                renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(window.devicePixelRatio);
+                document.getElementById('game-screen').appendChild(renderer.domElement);
+
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                scene.add(ambientLight);
+
+                const pointLight = new THREE.PointLight(0xffd700, 1.5, 20);
+                pointLight.position.set(0, 5, 5);
+                scene.add(pointLight);
+                
+                const pointLight2 = new THREE.PointLight(0xff00ff, 0.8, 20);
+                pointLight2.position.set(-5, -2, 5);
+                scene.add(pointLight2);
+
+                const geometry = new THREE.BoxGeometry(1.5, 2.5, 0.5);
+                const colors = [0xff3333, 0x33ff33, 0x3333ff]; 
+
+                for (let i = 0; i < 3; i++) {
+                    const material = new THREE.MeshStandardMaterial({ 
+                        color: colors[i], 
+                        emissive: colors[i], 
+                        emissiveIntensity: 0.3,
+                        roughness: 0.2,
+                        metalness: 0.8
+                    });
+                    const mesh = new THREE.Mesh(geometry, material);
+                    mesh.position.x = (i - 1) * 2.5;
+                    scene.add(mesh);
+                    reels.push(mesh);
+                }
+
+                animate();
+            } catch (err) {
+                showDebugError("init3D (Three.js Setup)", err);
+            }
+        }
+
+        // ==========================================
+        // 5. منطق اللعب (Spin)
+        // ==========================================
+        document.getElementById('spinBtn').addEventListener('click', async () => {
+            try {
+                if (isSpinning) return;
+                
+                const betAmount = 10;
+                if (userBalance < betAmount) {
+                    alert("⚠️ رصيدك غير كافٍ لإجراء هذه الدورة!");
+                    return;
+                }
+
+                isSpinning = true;
+                document.getElementById('spinBtn').disabled = true;
+                document.getElementById('message').style.display = 'none';
+
+                const newBalance = userBalance - betAmount;
+                await updateBalanceInDB(newBalance);
+
+                reels.forEach((reel, index) => {
+                    reel.userData.speed = 0.3 + (Math.random() * 0.2);
+                    reel.userData.stopTime = 1000 + (index * 500);
+                });
+
+                reels.forEach((reel, index) => {
+                    setTimeout(async () => {
+                        try {
+                            reel.userData.speed = 0;
+                            
+                            if (index === 2) {
+                                isSpinning = false;
+                                document.getElementById('spinBtn').disabled = false;
+                                
+                                const winAmount = Math.random() > 0.6 ? betAmount * 3 : 0;
+                                
+                                if (winAmount > 0) {
+                                    const finalBalance = userBalance + winAmount;
+                                    await updateBalanceInDB(finalBalance);
+                                    
+                                    const msgEl = document.getElementById('message');
+                                    msgEl.innerText = `🎉 مبروك! ربحت $${winAmount}`;
+                                    msgEl.style.display = 'block';
+                                    setTimeout(() => msgEl.style.display = 'none', 3000);
+                                }
+                            }
+                        } catch (innerErr) {
+                            showDebugError("Spin Animation Loop Timer", innerErr);
+                        }
+                    }, reel.userData.stopTime);
+                });
+            } catch (err) {
+                showDebugError("Spin Button Click Event", err);
+            }
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (reels && reels.length > 0) {
+                reels.forEach(reel => {
+                    if (reel.userData && reel.userData.speed > 0) {
+                        reel.rotation.x += reel.userData.speed;
+                        reel.rotation.y += reel.userData.speed * 0.5;
+                    }
+                });
+            }
+
+            if (camera) {
+                camera.position.x = Math.sin(Date.now() * 0.0005) * 0.5;
+                camera.lookAt(0, 0, 0);
+            }
+
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            }
+        }
+
+        window.addEventListener('resize', () => {
+            if (camera && renderer) {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        });
+    </script>
+</body>
+</html>
