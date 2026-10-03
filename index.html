@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Golden Tree 3D - Pro with Debugger</title>
+    <!-- ربط ملف الـ Manifest الخاص بالـ PWA -->
+    <link rel="manifest" href="manifest.json">
+    
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
@@ -110,7 +113,6 @@
             errText.innerHTML = `<strong>Location:</strong> ${context}<br><strong>Error:</strong> ${errorMsg}`;
             errBox.style.display = 'block';
 
-            // إعادة تفعيل الأزرار إن علقت أثناء العملية
             isSpinning = false;
             const spinBtn = document.getElementById('spinBtn');
             if (spinBtn) spinBtn.disabled = false;
@@ -120,7 +122,6 @@
             document.getElementById('debug-error-box').style.display = 'none';
         }
 
-        // رصد أي خطأ عام غير معالج في الصفحة
         window.onerror = function (msg, url, lineNo, columnNo, error) {
             showDebugError(`JS Script Error (Line ${lineNo})`, msg);
             return false;
@@ -131,7 +132,7 @@
         });
 
         // ==========================================
-        // 1. إعداد Supabase (المفاتيح المحدثة بدقة)
+        // 1. إعداد Supabase
         // ==========================================
         const SUPABASE_URL = 'https://zwyukqwdbykaccsunek.supabase.co'; 
         const SUPABASE_ANON_KEY = 'sb_publishable_LhPO8Lz4qq_IVVFOvNmvFA_7_4TJncY'; 
@@ -431,6 +432,17 @@
                 renderer.setSize(window.innerWidth, window.innerHeight);
             }
         });
+    </script>
+
+    <!-- كود تسجيل الـ Service Worker (مطلوب لنجاح اختبار PWABuilder وتحويل التطبيق لـ APK) -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/pwabuilder-sw.js')
+                    .then(reg => console.log('Service Worker registered!', reg))
+                    .catch(err => console.log('Service Worker registration failed: ', err));
+            });
+        }
     </script>
 </body>
 </html>
