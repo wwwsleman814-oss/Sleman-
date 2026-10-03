@@ -1,9 +1,17 @@
 {
-  "name": "Sleman App",
-  "short_name": "Sleman",
-  "description": "3D App",
-  "start_url": "/",
+  "name": "Golden Tree 3D Pro",
+  "short_name": "GoldenTree",
+  "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff"
+  "background_color": "#0a0514",
+  "theme_color": "#ffd700",
+  "description": "تعبة ترفيهية ثلاثية الأبعاد متطورة مدعومة بقاعدة بيانات سحابية وتتبع فوري للأخطاء",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2921/2921222.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }
